@@ -43,7 +43,10 @@ dataset * loadData(char* filename, char* name){
 		
 	/* Setup the dataset */
 	/* Allocate memory for the dataset */
-	ptrDataset = (dataset*) malloc( sizeof(dataset) );
+	if( (ptrDataset = (dataset*) malloc( sizeof(dataset) ))==NULL){
+		perror("Couldn't allocate the dataset");
+		return (NULL);
+	}
 	
 	/* Set the variables */
 	ptrDataset->numMembers = numMembers;  
@@ -51,11 +54,41 @@ dataset * loadData(char* filename, char* name){
 	ptrDataset->numOutputs = numOutputs;
 	
 	/* Allocate memory for the arrays in the dataset */
-	ptrDataset->members = (dataMember*) malloc(numMembers * sizeof(dataMember) );
-	ptrDataset->maxScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double) );
-	ptrDataset->minScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double) );
-	ptrDataset->sumSqErrors = (double*) malloc( numOutputs * sizeof(double) );
-	ptrDataset->name = (char*) malloc( (strlen(name)+1) * sizeof(char) );
+	if( (ptrDataset->members = (dataMember*) malloc(numMembers * sizeof(dataMember) )) == NULL){
+		perror("Couldn't allocate dataset");
+		free(ptrDataset);
+		return (NULL);
+	}
+	if( (ptrDataset->maxScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double) )) == NULL){
+		perror("Couldn't allocate dataset");
+		free(ptrDataset->members);
+		free(ptrDataset);
+		return (NULL);
+	}
+	if( (ptrDataset->minScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double) )) == NULL){
+		perror("Couldn't allocate dataset");
+		free(ptrDataset->maxScale);
+		free(ptrDataset->members);
+		free(ptrDataset);
+		return (NULL);
+	}
+	if( (ptrDataset->sumSqErrors = (double*) malloc( numOutputs * sizeof(double) )) == NULL){
+		perror("Couldn't allocate dataset");
+		free(ptrDataset->maxScale);
+		free(ptrDataset->minScale);
+		free(ptrDataset->members);
+		free(ptrDataset);
+		return (NULL);
+	}
+	if( (ptrDataset->name = (char*) malloc( (strlen(name)+1) * sizeof(char) ))==NULL){
+		perror("Couldn't allocate dataset");
+		free(ptrDataset->sumSqErrors);
+		free(ptrDataset->maxScale);
+		free(ptrDataset->minScale);
+		free(ptrDataset->members);
+		free(ptrDataset);
+		return (NULL);
+	}
 	
 	/* load the rest of the data */
 	/* Get the max and mins */
@@ -72,10 +105,72 @@ dataset * loadData(char* filename, char* name){
 	/* For each Member */
 	for(i=0; i< numMembers; i++){
 		/* Allocate the memory for the member */
-		(ptrDataset->members+i)->inputs = (double*) malloc( numInputs*sizeof(double) );
-		(ptrDataset->members+i)->targets = (double*) malloc( numOutputs*sizeof(double) );
-		(ptrDataset->members+i)->outputs = (double*) malloc( numOutputs*sizeof(double) );
-		(ptrDataset->members+i)->errors = (double*) malloc( numOutputs*sizeof(double) );
+		if( ((ptrDataset->members+i)->inputs = (double*) malloc( numInputs*sizeof(double) )) == NULL){
+			perror("Couldn't allocate dataset");
+			for(j=0; j<i; j++){
+				free((ptrDataset->members+j)->inputs);
+				free((ptrDataset->members+j)->targets);
+				free((ptrDataset->members+j)->outputs);
+				free((ptrDataset->members+j)->errors);
+			}
+			free(ptrDataset->sumSqErrors);
+			free(ptrDataset->maxScale);
+			free(ptrDataset->minScale);
+			free(ptrDataset->members);
+			free(ptrDataset);
+			return (NULL);
+		}
+		if( ((ptrDataset->members+i)->targets = (double*) malloc( numOutputs*sizeof(double) )) == NULL){
+			perror("Couldn't allocate dataset");
+			for(j=0; j<i; j++){
+				free((ptrDataset->members+j)->inputs);
+				free((ptrDataset->members+j)->targets);
+				free((ptrDataset->members+j)->outputs);
+				free((ptrDataset->members+j)->errors);
+			}
+			free((ptrDataset->members+j)->inputs);
+			free(ptrDataset->sumSqErrors);
+			free(ptrDataset->maxScale);
+			free(ptrDataset->minScale);
+			free(ptrDataset->members);
+			free(ptrDataset);
+			return (NULL);
+		}
+		if( ((ptrDataset->members+i)->outputs = (double*) malloc( numOutputs*sizeof(double) )) == NULL){
+			perror("Couldn't allocate dataset");
+			for(j=0; j<i; j++){
+				free((ptrDataset->members+j)->inputs);
+				free((ptrDataset->members+j)->targets);
+				free((ptrDataset->members+j)->outputs);
+				free((ptrDataset->members+j)->errors);
+			}
+			free((ptrDataset->members+i)->inputs);
+			free((ptrDataset->members+i)->targets);
+			free(ptrDataset->sumSqErrors);
+			free(ptrDataset->maxScale);
+			free(ptrDataset->minScale);
+			free(ptrDataset->members);
+			free(ptrDataset);
+			return (NULL);
+		}
+		if( ((ptrDataset->members+i)->errors = (double*) malloc( numOutputs*sizeof(double) )) == NULL){
+			perror("Couldn't allocate dataset");
+			for(j=0; j<i; j++){
+				free((ptrDataset->members+j)->inputs);
+				free((ptrDataset->members+j)->targets);
+				free((ptrDataset->members+j)->outputs);
+				free((ptrDataset->members+j)->errors);
+			}
+			free((ptrDataset->members+i)->inputs);
+			free((ptrDataset->members+i)->targets);
+			free((ptrDataset->members+i)->outputs);
+			free(ptrDataset->sumSqErrors);
+			free(ptrDataset->maxScale);
+			free(ptrDataset->minScale);
+			free(ptrDataset->members);
+			free(ptrDataset);
+			return (NULL);
+		}
 		
 		/* Read the inputs */
 		for(j=0; j<numInputs; j++){
