@@ -21,6 +21,19 @@ struct dataset{
 	unsigned int 	numOutputs;		/* The number of outputs in the set */
 };
 
+typedef struct neuron{
+	double			output;			/* The output of the neuron */
+	double**		inputs;			/* An array of pointers to inputs */
+	double*			weights;		/* An array of weights for the inputs + bias */
+	unsigned short	type;			/* The activation type of the neuron */ 
+} neuron;
+
+struct mlpNetwork{
+	neuron**		layers;			/* Layers of neurons */
+	int*			numNeurons;		/* Number of neurons in each layer */
+	unsigned short	learning;		/* The learning type of the network */
+};
+
 /* 
 	First, define the functions for loading and handling the data.
 	Since we can't do anything without some data to do stuff with
@@ -217,6 +230,7 @@ void destroyDataset(dataset* ptrDataset){
 	Then, define the functions for maintaining the network,
 	and setting network parameters
 */
+
 
 /*
 	Next, define the functions for creating the network.
