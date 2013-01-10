@@ -31,7 +31,12 @@ typedef struct neuron{
 struct mlpNetwork{
 	neuron**		layers;			/* Layers of neurons */
 	int*			numNeurons;		/* Number of neurons in each layer */
+	int 			numLayers;		/* The number of layers in the network */
+	double			learnRate;		/* The learning rate of the neurons */
+	double			momentum		/* The momentum of the neurons */
 	unsigned short	learning;		/* The learning type of the network */
+	unsigned int	epoch;			/* The current epoch */
+	unsigned int	epochMax;		/* The maximum number of epochs */
 };
 
 /* 
@@ -227,9 +232,55 @@ void destroyDataset(dataset* ptrDataset){
 	free(ptrDataset);
 }
 /*
-	Then, define the functions for maintaining the network,
-	and setting network parameters
+	Then, define the functions for general tasks
 */
+void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double momentum){
+	if (emax >= 0) Net->epochMax = emax;
+	if (learnRate >= 0.0) Net->learnRate = learnRate;
+	if (momentum >= 0.0) Net->momentum = momentum;
+}
+
+/*
+	This function is used to set the weights for each neuron
+*/
+void setWeights(mlpNetwork* net, double* weights){
+
+}
+
+/*
+	Helper function which runs the network on a single data member
+*/
+
+void computeNetwork(mlpNetwork* net, dataMember* datum, unsigned int numIn, unsigned int numOut){
+	int i;
+	
+	/* For each neuron in the first layer*/
+		/* For each input */
+			/* Set the pointer to the input variable */
+	
+	/* For each layer */
+		/* For each neuron in that layer */
+			/* Compute the neuron output */
+	
+	/* For each output */
+		/* Store the output in the datamember */
+		/* Calculate and store the error (target - output) */
+	
+}
+
+/*
+	Function called by the user to run the network on a given dataset
+*/
+
+void runNetwork(mlpNetwork* net, dataset* data, int print){
+	unsigned int i, j;
+	
+	for(i=0; i< data->numMembers; i++){
+		/* Call computeNetwork on the data member */
+	}
+	
+	/* Calculate the sumSqError for each output */
+}
 
 
 /*
