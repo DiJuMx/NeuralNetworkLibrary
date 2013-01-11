@@ -20,6 +20,6 @@ void destroyDataset(dataset* ptrDataset);
 void setLearnParameters(mlpNetwork* Net, int emax, double learnRate, double momentum);
 void setWeights(mlpNetwork* net, double* weights);
 void runNetworkOnce(mlpNetwork* net, dataset* data, int print);
-mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs);
+mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learnMethod, int defaultActivation);
 
 #endif	/* NEURAL_NETWORK_H */	

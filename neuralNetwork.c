@@ -276,7 +276,7 @@ void computeNeuron(neuron* cell){
 		if(i==0){ /* The bias */
 			input = 1.0;
 		}else{
-			input = *(cell->inputs[i]);
+			input = *(cell->inputs[i-1]);
 		}
 		cell->output += input * cell->weights[i];
 	}
@@ -316,7 +316,7 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 	
 	/* For each output */
 	for(i=0; i<numOut; i++){
-		out = *(net->layers+ net->numLayers -1)+i;
+		out = net->layers[net->numLayers-1]+i;
 		/* Store the output in the datamember */
 		datum->outputs[i] = out->output;
 		/* Calculate and store the error (target - output) */
@@ -413,11 +413,35 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	2.	Loading a previous network (For now ignore this)
 */
 
+void destroyNet(mlpNetwork* net){
+	int i, j;
+	neuron* nTemp;
+	
+	/* First deallocate the neurons int he layers */
+	for(i=0; i< net->numLayers; i++){
+		/* For each neuron */
+		for(j=0; j< net->numNeurons[i]; j++){
+			nTemp = (net->layers[i])+j;
+			free(nTemp->weights);
+			free(nTemp->inputs);
+		}
+		/* Followed by the layers*/
+		free(net->layers[i]);
+	}
+	/* Finally, The array of layers, the number of 
+	neurons per layer, and the net itself */
+	free(net->layers);
+	free(net->numNeurons);
+	free(net);
+}
+
 mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learnMethod, int defaultActivation){
-	int i,j;
+	int i,j,k,m;
 	char check =0x00;
 	mlpNetwork* net;
-	
+	neuron* nTemp;
+	 double** inPtrs;
+	 
 	/* Check Validity */
 	if(numLayers < 1 || inputs < 1){
 		printf("\n Must specify 1 or more Layers and/or inputs \n");
@@ -433,10 +457,9 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 		printf("Activation method not recognised\n");
 		return (NULL);
 	}
-	
 		
 	if((net = (mlpNetwork*) malloc(sizeof(mlpNetwork))) == NULL) return (NULL);
-	
+	net->numLayers = numLayers;
 	net->learning = learnMethod;
 	
 	if((net->layers = (neuron**) malloc(numLayers * sizeof(neuron*))) != NULL) check |= 0x01;
@@ -452,30 +475,98 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 	}
 	
 	/* Create neurons */
+	
+	/* First, create the layers */
 	for(i=0; i<numLayers; i++){
+		/* Store the number of neurons in the layer */
 		net->numNeurons[i] = numPerLayer[i];
+		/* Allocate the neurons for the layer */
 		if((net->layers[i] = (neuron*) malloc(numPerLayer[i] * sizeof(neuron))) == NULL){
+			/* If couldn't allocate */
 			printf("Couldn't create network\n");
+			/* Deallocate previously allocated layers */
 			for(j=0; j<i; j++){
-				free(net->layers[i]);
+				free(net->layers[j]);
 			}
+			/* Deallocate other arrays */
 			free(net->layers);
 			free(net->numNeurons);
 			free(net);
 			return (NULL);
 		}
-		for(j=0; j<numPerLayer[i];j++){
-			if(j==0) (net->layers[i])+j->numInputs = inputs;
-			else (net->layers[i])+j->numInputs = numPerLayer[i-1];
-			(net->layers[i])+j->type = defaultActivation;
+		
+		/* For each neuron in the layer */
+		
+		for(j=0; j< numPerLayer[i]; j++){
+			/* Assign a temporary pointer */
+			nTemp = (net->layers[i])+j;
 			
-			/* Here, need to allocate memory for the input pointer array, and weights */
+			/* Set the number of inputs */
+			if(i==0) nTemp->numInputs = inputs; /* If it's the input layer */
+			else nTemp->numInputs = numPerLayer[i-1]; /* If it's not the input layer */
+			
+			/* Set the activation type */
+			nTemp->type = defaultActivation;
+			
+			/* Allocate the memory for the weights and inputs */
+			check=0x00;
+			if(( nTemp->weights = (double*) malloc((nTemp->numInputs +1) * sizeof(double))) != NULL) check |= 0x01;
+			if(( nTemp->inputs = (double**) malloc((nTemp->numInputs) * sizeof(double*))) != NULL) check |= 0x02;
+			
+			/* If they failed */
+			if(check<0x03){
+				printf("Couldn't create network\n");
+				/* Need to deallocate succeded ones*/
+				if(check & 0x01) free(nTemp->weights);
+				if(check & 0x02) free(nTemp->inputs);
+				/* First, all previous neurons/weights in this layer */
+				for(k=0; k<j; k++){
+					nTemp = (net->layers[i])+k;
+					free(nTemp->weights);
+					free(nTemp->inputs);
+				}
+				/* Then, this layer */
+				free(net->layers[i]);
+				/* Then, all the neurons in the previous layers */
+				for(m=0; m<i; m++){
+					/* For each neuron */
+					for(k=0; k<numPerLayer[m]; k++){
+						nTemp = (net->layers[m])+k;
+						free(nTemp->weights);
+						free(nTemp->inputs);
+					}
+					/* Followed by those layers*/
+					free(net->layers[m]);
+				}
+				/* Finally, The array of layers, the number of 
+				neurons per layer, and the net itself */
+				free(net->layers);
+				free(net->numNeurons);
+				free(net);
+				return (NULL);
+			}
+			
 			
 		}
+		
+		
 	}
+	
 	/*connect layers */	
-	//connectInputs(mlpNetwork* net, double** inPtrs, int layer)
-
+	for(i=1; i<numLayers; i++){
+		
+		if((inPtrs = (double**) malloc((net->numNeurons[i-1]) * sizeof(double))) == NULL){
+			printf("Couldn't create the network\n");
+			destroyNet(net);
+			return (NULL);
+		}
+		for(j=0; j< net->numNeurons[i-1]; j++){
+			nTemp = (net->layers[i-1])+j;
+			inPtrs[j] = &(nTemp->output);
+		}
+		connectInputs(net, inPtrs, i);
+		free(inPtrs);
+	}
 	return (net);
 }
 

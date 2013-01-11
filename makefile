@@ -1,7 +1,7 @@
 CC = gcc
 AR = ar rcs
 
-CFLAGS = -c -Wall -Wextra
+CFLAGS = -c -Wall -Wextra -g
 LDFLAGS = -lm
 
 OBJS = neuralNetwork.o
