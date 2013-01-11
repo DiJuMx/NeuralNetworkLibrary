@@ -8,15 +8,13 @@
 #define BPROP_LEARNING 0x0011 	/* Back Propagation */
 #define HEBB_LEARNING  0x0012 	/* Hebbian learning (not available yet) */
 
-unsigned char 
-
 typedef struct dataset dataset;
 typedef struct mlpNetwork mlpNetwork;
 
 dataset * loadData(char* filename, char* name);
 void destroyDataset(dataset* ptrDataset);
 
-void setLearnParameters(mlpNetwork* Net, double learnRate, double momentum);
+void setLearnParameters(mlpNetwork* Net, int emax, double learnRate, double momentum);
 void setWeights(mlpNetwork* net, double* weights);
 void runNetwork(mlpNetwork* net, dataset* data, int print);
 

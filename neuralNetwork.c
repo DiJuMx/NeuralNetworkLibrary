@@ -33,7 +33,7 @@ struct mlpNetwork{
 	int*			numNeurons;		/* Number of neurons in each layer */
 	int 			numLayers;		/* The number of layers in the network */
 	double			learnRate;		/* The learning rate of the neurons */
-	double			momentum		/* The momentum of the neurons */
+	double			momentum;		/* The momentum of the neurons */
 	unsigned short	learning;		/* The learning type of the network */
 	unsigned int	epoch;			/* The current epoch */
 	unsigned int	epochMax;		/* The maximum number of epochs */
@@ -235,9 +235,9 @@ void destroyDataset(dataset* ptrDataset){
 	Then, define the functions for general tasks
 */
 void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double momentum){
-	if (emax >= 0) Net->epochMax = emax;
-	if (learnRate >= 0.0) Net->learnRate = learnRate;
-	if (momentum >= 0.0) Net->momentum = momentum;
+	if (emax >= 0) net->epochMax = emax;
+	if (learnRate >= 0.0) net->learnRate = learnRate;
+	if (momentum >= 0.0) net->momentum = momentum;
 }
 
 /*
