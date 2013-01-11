@@ -41,6 +41,18 @@ struct mlpNetwork{
 	int				epochMax;		/* The maximum number of epochs */
 };
 
+double scale(double val, double min, double max, int type){
+	if(min == max) return (val); /* i.e. Don't Scale this data */
+	
+	if(type == SCALE_FOR_NET){ /* i.e. Take data, convert to values for network */
+		return ( 0.1 + (0.8 * (val - min) / (max-min) ) );
+	}else if(type == SCALE_FOR_HUMAN){ /* i.e. Take network values and convert for human */
+		return ( min + ((max-min) * (val - 0.1) / 0.8));
+	}else{
+		return (val);
+	}	
+}
+
 /* 
 	First, define the functions for loading and handling the data.
 	Since we can't do anything without some data to do stuff with
@@ -51,6 +63,7 @@ dataset * loadData(char* filename, char* name){
 	dataset* ptrDataset;
 	int numInputs, numOutputs, numMembers;
 	int i,j;
+	char check = 0x00;
 	
 	/* Open filename */
 	if( (ptrDataFile = fopen(filename, "r"))==NULL){
@@ -74,38 +87,24 @@ dataset * loadData(char* filename, char* name){
 	ptrDataset->numOutputs = numOutputs;
 	
 	/* Allocate memory for the arrays in the dataset */
-	if( (ptrDataset->members = (dataMember*) malloc(numMembers * sizeof(dataMember) )) == NULL){
-		perror("Couldn't allocate dataset");
-		free(ptrDataset);
-		return (NULL);
-	}
-	if( (ptrDataset->maxScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double) )) == NULL){
-		perror("Couldn't allocate dataset");
-		free(ptrDataset->members);
-		free(ptrDataset);
-		return (NULL);
-	}
-	if( (ptrDataset->minScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double) )) == NULL){
-		perror("Couldn't allocate dataset");
-		free(ptrDataset->maxScale);
-		free(ptrDataset->members);
-		free(ptrDataset);
-		return (NULL);
-	}
-	if( (ptrDataset->sumSqErrors = (double*) malloc( numOutputs * sizeof(double) )) == NULL){
-		perror("Couldn't allocate dataset");
-		free(ptrDataset->maxScale);
-		free(ptrDataset->minScale);
-		free(ptrDataset->members);
-		free(ptrDataset);
-		return (NULL);
-	}
-	if( (ptrDataset->name = (char*) malloc( (strlen(name)+1) * sizeof(char) ))==NULL){
-		perror("Couldn't allocate dataset");
-		free(ptrDataset->sumSqErrors);
-		free(ptrDataset->maxScale);
-		free(ptrDataset->minScale);
-		free(ptrDataset->members);
+	if((ptrDataset->members = (dataMember*) malloc(numMembers * sizeof(dataMember))) != NULL)
+		check |= 0x01;
+	if((ptrDataset->maxScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double))) != NULL)
+		check |= 0x02;
+	if((ptrDataset->minScale = (double*) malloc( (numInputs+numOutputs) * sizeof(double))) != NULL)
+		check |= 0x04;
+	if((ptrDataset->sumSqErrors = (double*) malloc( numOutputs * sizeof(double))) != NULL)
+		check |= 0x08;
+	if((ptrDataset->name = (char*) malloc( (strlen(name)+1) * sizeof(char))) !=NULL)
+		check |= 0x10;
+	
+	if(check<31){
+		printf("Couldn't allocate dataset");
+		if(check & 0x01) free(ptrDataset->sumSqErrors);
+		if(check & 0x02) free(ptrDataset->maxScale);
+		if(check & 0x04) free(ptrDataset->minScale);
+		if(check & 0x08) free(ptrDataset->members);
+		if(check & 0x10) free(ptrDataset->name);
 		free(ptrDataset);
 		return (NULL);
 	}
@@ -125,65 +124,31 @@ dataset * loadData(char* filename, char* name){
 	/* For each Member */
 	for(i=0; i< numMembers; i++){
 		/* Allocate the memory for the member */
-		if( ((ptrDataset->members+i)->inputs = (double*) malloc( numInputs*sizeof(double) )) == NULL){
-			perror("Couldn't allocate dataset");
+		check = 0x00;
+		if( ((ptrDataset->members+i)->inputs = (double*) malloc( numInputs*sizeof(double) )) != NULL)
+			check |= 0x01;
+		if( ((ptrDataset->members+i)->targets = (double*) malloc( numOutputs*sizeof(double) )) != NULL)
+			check |= 0x03;
+		if( ((ptrDataset->members+i)->outputs = (double*) malloc( numOutputs*sizeof(double) )) != NULL)
+			check |= 0x04;
+		if( ((ptrDataset->members+i)->errors = (double*) malloc( numOutputs*sizeof(double) )) != NULL)
+			check |= 0x08;
+		
+		if(check<15){
+			printf("Couldn't allocate dataset");
+			/* Deallocate the previous loops */
 			for(j=0; j<i; j++){
 				free((ptrDataset->members+j)->inputs);
 				free((ptrDataset->members+j)->targets);
 				free((ptrDataset->members+j)->outputs);
 				free((ptrDataset->members+j)->errors);
 			}
-			free(ptrDataset->sumSqErrors);
-			free(ptrDataset->maxScale);
-			free(ptrDataset->minScale);
-			free(ptrDataset->members);
-			free(ptrDataset);
-			return (NULL);
-		}
-		if( ((ptrDataset->members+i)->targets = (double*) malloc( numOutputs*sizeof(double) )) == NULL){
-			perror("Couldn't allocate dataset");
-			for(j=0; j<i; j++){
-				free((ptrDataset->members+j)->inputs);
-				free((ptrDataset->members+j)->targets);
-				free((ptrDataset->members+j)->outputs);
-				free((ptrDataset->members+j)->errors);
-			}
-			free((ptrDataset->members+j)->inputs);
-			free(ptrDataset->sumSqErrors);
-			free(ptrDataset->maxScale);
-			free(ptrDataset->minScale);
-			free(ptrDataset->members);
-			free(ptrDataset);
-			return (NULL);
-		}
-		if( ((ptrDataset->members+i)->outputs = (double*) malloc( numOutputs*sizeof(double) )) == NULL){
-			perror("Couldn't allocate dataset");
-			for(j=0; j<i; j++){
-				free((ptrDataset->members+j)->inputs);
-				free((ptrDataset->members+j)->targets);
-				free((ptrDataset->members+j)->outputs);
-				free((ptrDataset->members+j)->errors);
-			}
-			free((ptrDataset->members+i)->inputs);
-			free((ptrDataset->members+i)->targets);
-			free(ptrDataset->sumSqErrors);
-			free(ptrDataset->maxScale);
-			free(ptrDataset->minScale);
-			free(ptrDataset->members);
-			free(ptrDataset);
-			return (NULL);
-		}
-		if( ((ptrDataset->members+i)->errors = (double*) malloc( numOutputs*sizeof(double) )) == NULL){
-			perror("Couldn't allocate dataset");
-			for(j=0; j<i; j++){
-				free((ptrDataset->members+j)->inputs);
-				free((ptrDataset->members+j)->targets);
-				free((ptrDataset->members+j)->outputs);
-				free((ptrDataset->members+j)->errors);
-			}
-			free((ptrDataset->members+i)->inputs);
-			free((ptrDataset->members+i)->targets);
-			free((ptrDataset->members+i)->outputs);
+			
+			if(check & 0x01) free((ptrDataset->members+i)->inputs);
+			if(check & 0x02) free((ptrDataset->members+i)->targets);
+			if(check & 0x04) free((ptrDataset->members+i)->outputs);
+			if(check & 0x08) free((ptrDataset->members+i)->errors);
+			
 			free(ptrDataset->sumSqErrors);
 			free(ptrDataset->maxScale);
 			free(ptrDataset->minScale);
@@ -315,7 +280,6 @@ void computeNeuron(neuron* cell){
 	}
 }
 
-
 void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 	int i,j;
 	neuron* out;
@@ -352,7 +316,7 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 	Function called by the user to run the network on a given dataset once
 */
 
-void runNetwork(mlpNetwork* net, dataset* data, int print){
+void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	int i,j,k;
 	dataMember* member;
 	
@@ -429,8 +393,12 @@ void runNetwork(mlpNetwork* net, dataset* data, int print){
 /*
 	Next, define the functions for creating the network.
 	There are two scenarios:
-	1.	Sarting from scratch
+	1.	Starting from scratch
 	2.	Loading a previous network (For now ignore this)
 */
+
+mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs){
+	
+}
 
 
