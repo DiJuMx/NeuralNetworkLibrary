@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 typedef struct dataMember{
 	double*			inputs;			/* The input data */
@@ -16,16 +17,17 @@ struct dataset{
 	double*			minScale;		/* What the min value of the ins/outs are */
 	double*			sumSqErrors;	/* The sum squared errors of all members */
 	char* 			name;			/* The name of the data set */
-	unsigned int 	numMembers;		/* The number of members in the set */
-	unsigned int 	numInputs;		/* The number of inputs in the set */
-	unsigned int 	numOutputs;		/* The number of outputs in the set */
+	int 			numMembers;		/* The number of members in the set */
+	int 			numInputs;		/* The number of inputs in the set */
+	int 			numOutputs;		/* The number of outputs in the set */
 };
 
 typedef struct neuron{
 	double			output;			/* The output of the neuron */
 	double**		inputs;			/* An array of pointers to inputs */
 	double*			weights;		/* An array of weights for the inputs + bias */
-	unsigned short	type;			/* The activation type of the neuron */ 
+	int				numInputs;		/* The number of inputs to the neuron */
+	short			type;			/* The activation type of the neuron */ 
 } neuron;
 
 struct mlpNetwork{
@@ -34,9 +36,9 @@ struct mlpNetwork{
 	int 			numLayers;		/* The number of layers in the network */
 	double			learnRate;		/* The learning rate of the neurons */
 	double			momentum;		/* The momentum of the neurons */
-	unsigned short	learning;		/* The learning type of the network */
-	unsigned int	epoch;			/* The current epoch */
-	unsigned int	epochMax;		/* The maximum number of epochs */
+	short			learning;		/* The learning type of the network */
+	int				epoch;			/* The current epoch */
+	int				epochMax;		/* The maximum number of epochs */
 };
 
 /* 
@@ -212,7 +214,7 @@ dataset * loadData(char* filename, char* name){
 } 
 
 void destroyDataset(dataset* ptrDataset){
-	unsigned int i;
+	int i;
 	/* First loop through the members and free the arrays in them */
 	for(i=0; i< (ptrDataset->numMembers); i++){
 		free( (ptrDataset->members +i)->inputs	);
@@ -244,28 +246,103 @@ void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double mome
 	This function is used to set the weights for each neuron
 */
 void setWeights(mlpNetwork* net, double* weights){
-
+	int i, j, k;
+	int wCnt=0;
+	neuron* layer;
+	neuron* nTemp;
+	
+	/* For each layer */
+	for(i=0; i<net->numLayers; i++){
+		/* For each neuron in the layer */
+		for(j=0; j< net->numNeurons[i]; j++){
+			/* For each weight for the neuron */
+			layer = net->layers[i];
+			for(k=0; k<= (layer+j)->numInputs; k++){
+				nTemp= layer+j;
+				/* Update the weight */
+				nTemp->weights[k] = weights[wCnt++];
+			}				
+		}
+	}
 }
 
 /*
 	Helper function which runs the network on a single data member
 */
 
-void computeNetwork(mlpNetwork* net, dataMember* datum, unsigned int numIn, unsigned int numOut){
-	int i;
+void connectInputs(mlpNetwork* net, double** inPtrs, int layer){
+	int i,j;
+	neuron* nTemp;
 	
-	/* For each neuron in the first layer*/
+	/* For each neuron in the the layer*/
+	for(i=0; i< net->numNeurons[layer]; i++){
 		/* For each input */
+		nTemp = net->layers[layer]+i;
+		for(j=0; j< nTemp->numInputs; j++){
 			/* Set the pointer to the input variable */
+			nTemp->inputs[j] = inPtrs[j];	
+		}
+	}
+}
+
+void computeNeuron(neuron* cell){
+	int i;
+	double input=0.0;
+	
+	/* Reset cell output to 0 */
+	cell->output=0.0;
+	/* Sum the inputs */
+	for(i=0; i<= cell->numInputs; i++){
+		if(i==0){ /* The bias */
+			input = 1.0;
+		}else{
+			input = *(cell->inputs[i]);
+		}
+		cell->output += input * cell->weights[i];
+	}
+	
+	if(cell->type == LIN_ACTIVATION){
+		/* Do Nothing (output = sum of inputs) */
+	}else if(cell->type == SIG_ACTIVATION){
+		/* Apply sigmoid function */
+		cell->output = 1.0 / (1.0 + exp(-cell->output)); 
+	}else{
+		/* Set ouput to 0.0*/
+		cell->output = 0.0;
+	}
+}
+
+
+void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
+	int i,j;
+	neuron* out;
+	double** inPtrs;
+	
+	/* Store the addresses of the inputs in an array */
+	inPtrs = (double**) malloc(numIn * sizeof(double*));
+	for(i=0; i< numIn; i++){
+		inPtrs[i] = datum->inputs+i;
+	}
+	/* Then map the inputs for the first layer to them */
+	connectInputs(net, inPtrs, 0);
 	
 	/* For each layer */
+	for(i=0; i< net->numLayers; i++){
 		/* For each neuron in that layer */
+		for(j=0; j< net->numNeurons[i]; j++){
 			/* Compute the neuron output */
+			computeNeuron(*(net->layers+i)+j);
+		}
+	}
 	
 	/* For each output */
+	for(i=0; i<numOut; i++){
+		out = *(net->layers+ net->numLayers -1)+i;
 		/* Store the output in the datamember */
+		datum->outputs[i] = out->output;
 		/* Calculate and store the error (target - output) */
-	
+		datum->errors[i] = datum->targets[i] - datum->outputs[i];
+	}
 }
 
 /*
@@ -273,7 +350,7 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, unsigned int numIn, unsi
 */
 
 void runNetwork(mlpNetwork* net, dataset* data, int print){
-	unsigned int i, j;
+	int i, j;
 	
 	for(i=0; i< data->numMembers; i++){
 		/* Call computeNetwork on the data member */
@@ -287,7 +364,7 @@ void runNetwork(mlpNetwork* net, dataset* data, int print){
 	Next, define the functions for creating the network.
 	There are two scenarios:
 	1.	Sarting from scratch
-	2.	Loading a previous network
+	2.	Loading a previous network (For now ignore this)
 */
 
 

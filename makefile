@@ -16,6 +16,6 @@ libneuralNet.a($(OBJS)) : $(OBJS)
 	$(AR) $@ $%
 	
 %.o: %.c
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@
 
 .PHONY: all clean
