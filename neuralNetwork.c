@@ -236,6 +236,9 @@ void destroyDataset(dataset* ptrDataset){
 /*
 	Then, define the functions for general tasks
 */
+
+double sqr(double val){ return (val*val); }
+
 void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double momentum){
 	if (emax >= 0) net->epochMax = emax;
 	if (learnRate >= 0.0) net->learnRate = learnRate;
@@ -346,17 +349,80 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 }
 
 /*
-	Function called by the user to run the network on a given dataset
+	Function called by the user to run the network on a given dataset once
 */
 
 void runNetwork(mlpNetwork* net, dataset* data, int print){
-	int i, j;
+	int i,j,k;
+	dataMember* member;
 	
-	for(i=0; i< data->numMembers; i++){
-		/* Call computeNetwork on the data member */
+	/* First initialise the sumSqErrors to 0.0 */
+	for(i=0; i< data->numOutputs; i++){
+		data->sumSqErrors[i] = 0.0;
 	}
 	
-	/* Calculate the sumSqError for each output */
+	if(print>0){
+		switch(print){
+			case 2:	/* Outputs and targets */
+				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ",
+										19*data->numOutputs , "(Outputs,Targets): ");
+				break;
+			case 3:	/* Outputs and errors */
+				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ",
+										19*data->numOutputs , "(Outputs,Errors):  ");
+				break;
+			case 4:	/* Outputs, target and errors */
+				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ", 
+										28*data->numOutputs , "(Outputs,Targets,Errors):   ");
+				break;
+			case 1: /* Just the outputs */
+			default:
+				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ", 
+										10*data->numOutputs ,"(Outputs):");
+				break;
+		}
+		printf("\n");
+	}
+	
+	/* Then calculate the outputs for each output */
+	for(i=0; i< data->numMembers; i++){
+		/* Call computeNetwork on the data member */
+		member = data->members+i;
+		computeNetwork(net, member, data->numInputs, data->numOutputs);
+		
+		/* If want output, print the inputs and associated outputs */
+		if(print > 0){
+			for(k=0; k< data->numInputs; k++){
+				if(k==0)printf("%7.4lf", member->inputs[k]);
+				else	printf(", %7.4lf", member->inputs[k]);
+			}
+			printf("|");
+			for(k=0; k< data->numOutputs; k++){
+				switch(print){
+					case 2:	/* Outputs and targets */
+						printf("(%7.4lf, %7.4lf) ", member->outputs[k], member->targets[k] );
+						break;
+					case 3:	/* Outputs and errors */
+						printf("(%7.4lf, %7.4lf) ", member->outputs[k], member->errors[k] );
+						break;
+					case 4:	/* Outputs, target and errors */
+						printf("(%7.4lf, %7.4lf, %7.4lf) ", member->outputs[k], member->targets[k], member->errors[k] );
+						break;
+					case 1: /* Just the outputs */
+					default:
+						printf("(%7.4lf) ", member->outputs[k] );
+						break;				
+				}
+			}
+			printf("\n");
+		}		
+		
+		/* Add outputs to appropriate sumSqError */
+		for(j=0; j< data->numOutputs; j++){
+			data->sumSqErrors[j] += sqr((data->members+i)->outputs[j]);
+		}
+	}	
+	
 }
 
 
