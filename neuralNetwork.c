@@ -27,7 +27,7 @@ typedef struct neuron{
 	double**		inputs;			/* An array of pointers to inputs */
 	double*			weights;		/* An array of weights for the inputs + bias */
 	int				numInputs;		/* The number of inputs to the neuron */
-	short			type;			/* The activation type of the neuron */ 
+	int				type;			/* The activation type of the neuron */ 
 } neuron;
 
 struct mlpNetwork{
@@ -36,7 +36,7 @@ struct mlpNetwork{
 	int 			numLayers;		/* The number of layers in the network */
 	double			learnRate;		/* The learning rate of the neurons */
 	double			momentum;		/* The momentum of the neurons */
-	short			learning;		/* The learning type of the network */
+	int				learning;		/* The learning type of the network */
 	int				epoch;			/* The current epoch */
 	int				epochMax;		/* The maximum number of epochs */
 };
@@ -65,7 +65,7 @@ dataset * loadData(char* filename, char* name){
 	dataset* ptrDataset;
 	int numInputs, numOutputs, numMembers;
 	int i,j;
-	double temp=0.0;
+	double temp=0.0,min,max;
 	char check = 0x00;
 	
 	/* Open filename */
@@ -80,7 +80,7 @@ dataset * loadData(char* filename, char* name){
 	/* Setup the dataset */
 	/* Allocate memory for the dataset */
 	if( (ptrDataset = (dataset*) malloc( sizeof(dataset) ))==NULL){
-		perror("Couldn't allocate the dataset");
+		perror("Couldn't allocate the dataset\n");
 		return (NULL);
 	}
 	
@@ -102,7 +102,7 @@ dataset * loadData(char* filename, char* name){
 		check |= 0x10;
 	
 	if(check<31){
-		printf("Couldn't allocate dataset");
+		printf("Couldn't allocate dataset\n");
 		if(check & 0x01) free(ptrDataset->sumSqErrors);
 		if(check & 0x02) free(ptrDataset->maxScale);
 		if(check & 0x04) free(ptrDataset->minScale);
@@ -138,7 +138,7 @@ dataset * loadData(char* filename, char* name){
 			check |= 0x08;
 		
 		if(check<15){
-			printf("Couldn't allocate dataset");
+			printf("Couldn't allocate dataset\n");
 			/* Deallocate the previous loops */
 			for(j=0; j<i; j++){
 				free((ptrDataset->members+j)->inputs);
@@ -162,18 +162,24 @@ dataset * loadData(char* filename, char* name){
 		
 		/* Read the inputs */
 		for(j=0; j<numInputs; j++){
+			max = ptrDataset->maxScale[j];
+			min = ptrDataset->minScale[j];
 			fscanf(ptrDataFile, "%lf, ", &temp);
 			(ptrDataset->members+i)->inputs[i] = scale(temp,min,max,SCALE_FOR_NET);
 		}
 		
 		/* Read the outputs */
 		for(j=0; j<numOutputs-1; j++){
+			max = ptrDataset->maxScale[numInputs+j];
+			min = ptrDataset->minScale[numInputs+j];
 			fscanf(ptrDataFile, "%lf, ", &temp);
 			(ptrDataset->members+i)->targets[i] = scale(temp,min,max,SCALE_FOR_NET);
 			(ptrDataset->members+i)->outputs[i] = 0.0;
 			(ptrDataset->members+i)->errors[i] = 0.0;
 		}
 		fscanf(ptrDataFile, "%lf\n", &temp);
+		max = ptrDataset->maxScale[numInputs+numOutputs-1];
+		min = ptrDataset->minScale[numInputs+numOutputs-1];
 		(ptrDataset->members+i)->targets[numOutputs-1] = scale(temp,min,max,SCALE_FOR_NET);
 		(ptrDataset->members+i)->outputs[i] = 0.0;
 		(ptrDataset->members+i)->errors[i] = 0.0;
@@ -407,8 +413,70 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	2.	Loading a previous network (For now ignore this)
 */
 
-mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs){
+mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learnMethod, int defaultActivation){
+	int i,j;
+	char check =0x00;
+	mlpNetwork* net;
 	
+	/* Check Validity */
+	if(numLayers < 1 || inputs < 1){
+		printf("\n Must specify 1 or more Layers and/or inputs \n");
+		return (NULL);
+	}
+	if(learnMethod != BPROP_LEARNING){
+		if(learnMethod == HEBB_LEARNING) printf("The hebbian learning method is not implemented yet\n");
+		else printf("The learning method is not recognised\n");
+		return (NULL);
+	}
+	if(   defaultActivation != LIN_ACTIVATION
+	   && defaultActivation != SIG_ACTIVATION){
+		printf("Activation method not recognised\n");
+		return (NULL);
+	}
+	
+		
+	if((net = (mlpNetwork*) malloc(sizeof(mlpNetwork))) == NULL) return (NULL);
+	
+	net->learning = learnMethod;
+	
+	if((net->layers = (neuron**) malloc(numLayers * sizeof(neuron*))) != NULL) check |= 0x01;
+	
+	if((net->numNeurons = (int*) malloc(numLayers * sizeof(int))) != NULL) check |= 0x02;
+	
+	if(check < 3){
+		printf("Couldn't create network\n");
+		if(check & 0x01) free(net->layers);
+		if(check & 0x02) free(net->numNeurons);
+		free(net);
+		return (NULL);
+	}
+	
+	/* Create neurons */
+	for(i=0; i<numLayers; i++){
+		net->numNeurons[i] = numPerLayer[i];
+		if((net->layers[i] = (neuron*) malloc(numPerLayer[i] * sizeof(neuron))) == NULL){
+			printf("Couldn't create network\n");
+			for(j=0; j<i; j++){
+				free(net->layers[i]);
+			}
+			free(net->layers);
+			free(net->numNeurons);
+			free(net);
+			return (NULL);
+		}
+		for(j=0; j<numPerLayer[i];j++){
+			if(j==0) (net->layers[i])+j->numInputs = inputs;
+			else (net->layers[i])+j->numInputs = numPerLayer[i-1];
+			(net->layers[i])+j->type = defaultActivation;
+			
+			/* Here, need to allocate memory for the input pointer array, and weights */
+			
+		}
+	}
+	/*connect layers */	
+	//connectInputs(mlpNetwork* net, double** inPtrs, int layer)
+
+	return (net);
 }
 
 
