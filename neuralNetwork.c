@@ -41,6 +41,8 @@ struct mlpNetwork{
 	int				epochMax;		/* The maximum number of epochs */
 };
 
+double sqr(double val){ return (val*val); }
+
 double scale(double val, double min, double max, int type){
 	if(min == max) return (val); /* i.e. Don't Scale this data */
 	
@@ -63,6 +65,7 @@ dataset * loadData(char* filename, char* name){
 	dataset* ptrDataset;
 	int numInputs, numOutputs, numMembers;
 	int i,j;
+	double temp=0.0;
 	char check = 0x00;
 	
 	/* Open filename */
@@ -159,16 +162,21 @@ dataset * loadData(char* filename, char* name){
 		
 		/* Read the inputs */
 		for(j=0; j<numInputs; j++){
-			fscanf(ptrDataFile, "%lf, ", (ptrDataset->members+i)->inputs+i);
+			fscanf(ptrDataFile, "%lf, ", &temp);
+			(ptrDataset->members+i)->inputs[i] = scale(temp,min,max,SCALE_FOR_NET);
 		}
 		
 		/* Read the outputs */
 		for(j=0; j<numOutputs-1; j++){
-			fscanf(ptrDataFile, "%lf, ", (ptrDataset->members+i)->targets+i);
-			*((ptrDataset->members+i)->outputs+i) = 0.0;
-			*((ptrDataset->members+i)->errors+i) = 0.0;
+			fscanf(ptrDataFile, "%lf, ", &temp);
+			(ptrDataset->members+i)->targets[i] = scale(temp,min,max,SCALE_FOR_NET);
+			(ptrDataset->members+i)->outputs[i] = 0.0;
+			(ptrDataset->members+i)->errors[i] = 0.0;
 		}
-		fscanf(ptrDataFile, "%lf\n", (ptrDataset->members+i)->targets+numOutputs-1);
+		fscanf(ptrDataFile, "%lf\n", &temp);
+		(ptrDataset->members+i)->targets[numOutputs-1] = scale(temp,min,max,SCALE_FOR_NET);
+		(ptrDataset->members+i)->outputs[i] = 0.0;
+		(ptrDataset->members+i)->errors[i] = 0.0;
 	}
 	
 	/* Make sure the file is closed */
@@ -201,8 +209,6 @@ void destroyDataset(dataset* ptrDataset){
 /*
 	Then, define the functions for general tasks
 */
-
-double sqr(double val){ return (val*val); }
 
 void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double momentum){
 	if (emax >= 0) net->epochMax = emax;
@@ -319,7 +325,7 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	int i,j,k;
 	dataMember* member;
-	
+	double max, min;
 	/* First initialise the sumSqErrors to 0.0 */
 	for(i=0; i< data->numOutputs; i++){
 		data->sumSqErrors[i] = 0.0;
@@ -357,24 +363,28 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 		/* If want output, print the inputs and associated outputs */
 		if(print > 0){
 			for(k=0; k< data->numInputs; k++){
-				if(k==0)printf("%7.4lf", member->inputs[k]);
-				else	printf(", %7.4lf", member->inputs[k]);
+				max = data->maxScale[k];
+				min = data->minScale[k];
+				if(k==0)printf("%7.4lf", scale(member->inputs[k], min, max, SCALE_FOR_HUMAN));
+				else	printf(", %7.4lf", scale(member->inputs[k], min, max, SCALE_FOR_HUMAN));
 			}
 			printf("|");
 			for(k=0; k< data->numOutputs; k++){
+				max = data->maxScale[data->numInputs+k];
+				min = data->minScale[data->numInputs+k];
 				switch(print){
 					case 2:	/* Outputs and targets */
-						printf("(%7.4lf, %7.4lf) ", member->outputs[k], member->targets[k] );
+						printf("(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN) );
 						break;
 					case 3:	/* Outputs and errors */
-						printf("(%7.4lf, %7.4lf) ", member->outputs[k], member->errors[k] );
+						printf("(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN));
 						break;
 					case 4:	/* Outputs, target and errors */
-						printf("(%7.4lf, %7.4lf, %7.4lf) ", member->outputs[k], member->targets[k], member->errors[k] );
+						printf("(%7.4lf, %7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN) );
 						break;
 					case 1: /* Just the outputs */
 					default:
-						printf("(%7.4lf) ", member->outputs[k] );
+						printf("(%7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN) );
 						break;				
 				}
 			}
