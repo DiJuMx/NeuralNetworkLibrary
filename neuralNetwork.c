@@ -24,6 +24,7 @@ struct dataset{
 
 typedef struct neuron{
 	double			output;			/* The output of the neuron */
+	double			delta;			/* The delta of the neuron */
 	double**		inputs;			/* An array of pointers to inputs */
 	double*			weights;		/* An array of weights for the inputs + bias */
 	double*			deltaWeights;	/* An array of weight changes for inputs + bias */
@@ -268,6 +269,72 @@ void connectInputs(mlpNetwork* net, double** inPtrs, int layer){
 	}
 }
 
+void adaptNetwork(mlpNetwork* net, double* errors, double* inputs){
+	int i, j, k;
+	neuron* nTemp;
+	double err=0.0;
+	double input =0.0;
+	
+	/* First, calculate the deltas */
+	
+	/* For each layer from the last to the first */
+	for(i=net->numLayers-1; i>=0; i--){
+		/* For each neuron in the layer */
+		for(j=0; j< net->numNeurons[i]; j++){
+			
+			/* If we're on the final layer, use the errors */
+			if(i == net->numLayers-1){
+				err = errors[j];
+			}else{/* Otherwise use the sum of next layers (deltas * weights) */
+				err = 0.0;
+				/* For each neuron in the next layer */
+				for(k=0; k< net->numNeurons[i+1]; k++){
+					nTemp = (net->layers[i+1])+k;
+					/* sum the delta * weight to neuron in this layer */
+					err += nTemp->delta * nTemp->weights[j];
+				}
+			}
+			
+			nTemp = (net->layers[i])+j;
+			
+			/* Delta = error for linear */
+			nTemp->delta = err;
+			if(nTemp->type == SIG_ACTIVATION){ /* If sigmoidal, do some extra processing */
+				nTemp->delta = nTemp->delta * (1-nTemp->output) * nTemp->output;
+			}
+		}
+	} 
+	
+	/* Then, calculate the required deltaWeights */
+	/* For each layer in the network */
+	for(i=0; i< net->numLayers; i++){
+		/* For each neuron in the layer */
+		for(j=0; j< net->numNeurons[i]; j++){
+			/*For each weight in the neuron */
+			nTemp = (net->layers[i])+j;
+			for(k=0; k<= nTemp->numInputs; k++){
+				/* if k==0, it's the bias */
+				if(k==0){
+					input=1.0;;
+				}else{
+					/* If we're on the first layer, use the supplied inputs */
+					if(i==0){
+						input = inputs[k-1];
+					}else{ /* Otherwise use the previous layer's outputs */
+						input = *(nTemp->inputs[k-1]);
+					}
+				}
+				
+				/* calculate the deltaWeights value for this neurons weights */
+				nTemp->deltaWeights[k] = net->learnRate * input * nTemp->delta
+				                       + net->momentum * nTemp->deltaWeights[k];
+			}
+		}
+	}
+	
+	
+}
+
 void computeNeuron(neuron* cell){
 	int i;
 	double input=0.0;
@@ -330,7 +397,6 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 /*
 	Function called by the user to run the network on a given dataset once
 */
-
 void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	int i,j,k;
 	dataMember* member;
@@ -408,6 +474,20 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	
 }
 
+/*
+	Function called by the user to train the network once
+*/
+void trainNetworkOnce(mlpNetwork* net, dataset* data, int print){
+	int i;
+	/* Consider mode (batch / online) */
+	
+	/* For each datamemember, compute then adapt */
+	for(i=0; i< data->numMembers; i++){
+		computeNetwork(net, data->members+i, data->numInputs, data->numOutputs);
+		adaptNetwork(net, (data->members+i)->errors, (data->members+i)->inputs);
+	}
+	
+}
 
 /*
 	Next, define the functions for creating the network.
@@ -465,6 +545,10 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 	if((net = (mlpNetwork*) malloc(sizeof(mlpNetwork))) == NULL) return (NULL);
 	net->numLayers = numLayers;
 	net->learning = learnMethod;
+	
+	/* Set a default in case they don't get set */
+	net->learnRate = 0.5;
+	net->momentum = 0.5;
 	
 	if((net->layers = (neuron**) malloc(numLayers * sizeof(neuron*))) != NULL) check |= 0x01;
 	
