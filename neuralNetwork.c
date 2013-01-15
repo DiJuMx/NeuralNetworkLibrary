@@ -167,7 +167,7 @@ dataset * loadData(char* filename, char* name){
 			max = ptrDataset->maxScale[j];
 			min = ptrDataset->minScale[j];
 			fscanf(ptrDataFile, "%lf, ", &temp);
-			(ptrDataset->members+i)->inputs[i] = scale(temp,min,max,SCALE_FOR_NET);
+			(ptrDataset->members+i)->inputs[j] = scale(temp,min,max,SCALE_FOR_NET);
 		}
 		
 		/* Read the outputs */
@@ -175,16 +175,16 @@ dataset * loadData(char* filename, char* name){
 			max = ptrDataset->maxScale[numInputs+j];
 			min = ptrDataset->minScale[numInputs+j];
 			fscanf(ptrDataFile, "%lf, ", &temp);
-			(ptrDataset->members+i)->targets[i] = scale(temp,min,max,SCALE_FOR_NET);
-			(ptrDataset->members+i)->outputs[i] = 0.0;
-			(ptrDataset->members+i)->errors[i] = 0.0;
+			(ptrDataset->members+i)->targets[j] = scale(temp,min,max,SCALE_FOR_NET);
+			(ptrDataset->members+i)->outputs[j] = 0.0;
+			(ptrDataset->members+i)->errors[j] = 0.0;
 		}
 		fscanf(ptrDataFile, "%lf\n", &temp);
-		max = ptrDataset->maxScale[numInputs+numOutputs-1];
-		min = ptrDataset->minScale[numInputs+numOutputs-1];
-		(ptrDataset->members+i)->targets[numOutputs-1] = scale(temp,min,max,SCALE_FOR_NET);
-		(ptrDataset->members+i)->outputs[i] = 0.0;
-		(ptrDataset->members+i)->errors[i] = 0.0;
+		max = ptrDataset->maxScale[numInputs+j];
+		min = ptrDataset->minScale[numInputs+j];
+		(ptrDataset->members+i)->targets[j] = scale(temp,min,max,SCALE_FOR_NET);
+		(ptrDataset->members+i)->outputs[j] = 0.0;
+		(ptrDataset->members+i)->errors[j] = 0.0;
 	}
 	
 	/* Make sure the file is closed */
@@ -291,7 +291,7 @@ void adaptNetwork(mlpNetwork* net, double* errors, double* inputs){
 				for(k=0; k< net->numNeurons[i+1]; k++){
 					nTemp = (net->layers[i+1])+k;
 					/* sum the delta * weight to neuron in this layer */
-					err += nTemp->delta * nTemp->weights[j];
+					err += nTemp->delta * nTemp->weights[j+1];
 				}
 			}
 			
@@ -304,7 +304,6 @@ void adaptNetwork(mlpNetwork* net, double* errors, double* inputs){
 			}
 		}
 	} 
-	
 	/* Then, calculate the required deltaWeights */
 	/* For each layer in the network */
 	for(i=0; i< net->numLayers; i++){
@@ -328,11 +327,11 @@ void adaptNetwork(mlpNetwork* net, double* errors, double* inputs){
 				/* calculate the deltaWeights value for this neurons weights */
 				nTemp->deltaWeights[k] = net->learnRate * input * nTemp->delta
 				                       + net->momentum * nTemp->deltaWeights[k];
+				
+				nTemp->weights[k] += nTemp->deltaWeights[k];
 			}
 		}
-	}
-	
-	
+	}	
 }
 
 void computeNeuron(neuron* cell){
@@ -392,6 +391,8 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 		/* Calculate and store the error (target - output) */
 		datum->errors[i] = datum->targets[i] - datum->outputs[i];
 	}
+	
+	free(inPtrs);
 }
 
 /*
@@ -605,12 +606,12 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 			if(( nTemp->deltaWeights = (double*) malloc((nTemp->numInputs+1)*sizeof(double))) != NULL) check |= 0x04;
 			
 			/* If they failed */
-			if(check<0x03){
+			if(check<0x07){
 				printf("Couldn't create network\n");
 				/* Need to deallocate succeded ones*/
 				if(check & 0x01) free(nTemp->weights);
 				if(check & 0x02) free(nTemp->inputs);
-				if(check & 0x03) free(nTemp->deltaWeights);
+				if(check & 0x04) free(nTemp->deltaWeights);
 				/* First, all previous neurons/weights in this layer */
 				for(k=0; k<j; k++){
 					nTemp = (net->layers[i])+k;
