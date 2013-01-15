@@ -26,6 +26,7 @@ typedef struct neuron{
 	double			output;			/* The output of the neuron */
 	double**		inputs;			/* An array of pointers to inputs */
 	double*			weights;		/* An array of weights for the inputs + bias */
+	double*			deltaWeights;	/* An array of weight changes for inputs + bias */
 	int				numInputs;		/* The number of inputs to the neuron */
 	int				type;			/* The activation type of the neuron */ 
 } neuron;
@@ -239,8 +240,10 @@ void setWeights(mlpNetwork* net, double* weights){
 			layer = net->layers[i];
 			for(k=0; k<= (layer+j)->numInputs; k++){
 				nTemp= layer+j;
-				/* Update the weight */
+				/* Set the weight */
 				nTemp->weights[k] = weights[wCnt++];
+				/* Set the previous change to 0 */
+				nTemp->deltaWeights[k] = 0;
 			}				
 		}
 	}
@@ -424,6 +427,7 @@ void destroyNet(mlpNetwork* net){
 			nTemp = (net->layers[i])+j;
 			free(nTemp->weights);
 			free(nTemp->inputs);
+			free(nTemp->deltaWeights);
 		}
 		/* Followed by the layers*/
 		free(net->layers[i]);
@@ -513,12 +517,16 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 			if(( nTemp->weights = (double*) malloc((nTemp->numInputs +1) * sizeof(double))) != NULL) check |= 0x01;
 			if(( nTemp->inputs = (double**) malloc((nTemp->numInputs) * sizeof(double*))) != NULL) check |= 0x02;
 			
+			/* Allocate memory for the weight change array */
+			if(( nTemp->deltaWeights = (double*) malloc((nTemp->numInputs+1)*sizeof(double))) != NULL) check |= 0x04;
+			
 			/* If they failed */
 			if(check<0x03){
 				printf("Couldn't create network\n");
 				/* Need to deallocate succeded ones*/
 				if(check & 0x01) free(nTemp->weights);
 				if(check & 0x02) free(nTemp->inputs);
+				if(check & 0x03) free(nTemp->deltaWeights);
 				/* First, all previous neurons/weights in this layer */
 				for(k=0; k<j; k++){
 					nTemp = (net->layers[i])+k;
@@ -534,6 +542,7 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 						nTemp = (net->layers[m])+k;
 						free(nTemp->weights);
 						free(nTemp->inputs);
+						free(nTemp->deltaWeights);
 					}
 					/* Followed by those layers*/
 					free(net->layers[m]);
