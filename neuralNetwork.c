@@ -1,8 +1,4 @@
 #include "neuralNetwork.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
 
 typedef struct dataMember{
 	double*			inputs;			/* The input data */
@@ -219,9 +215,17 @@ void destroyDataset(dataset* ptrDataset){
 */
 
 void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double momentum){
-	if (emax >= 0) net->epochMax = emax;
+	if (emax > 0) net->epochMax = emax;
+	else net->epochMax = 1000;
 	if (learnRate >= 0.0) net->learnRate = learnRate;
+	else net->learnRate = 0.5;
 	if (momentum >= 0.0) net->momentum = momentum;
+	else net->momentum = 0.5;
+}
+
+void getLearnParameters(mlpNetwork* net, FILE* stream){
+	fprintf(stream, "Max Epoch: %6d, Learning Rate: %06.3lf, Momentum: %06.3lf\n", 
+	                net->epochMax, net->learnRate, net->momentum);
 }
 
 /*
@@ -239,14 +243,37 @@ void setWeights(mlpNetwork* net, double* weights){
 		for(j=0; j< net->numNeurons[i]; j++){
 			/* For each weight for the neuron */
 			layer = net->layers[i];
-			for(k=0; k<= (layer+j)->numInputs; k++){
-				nTemp= layer+j;
+			nTemp= layer+j;
+			for(k=0; k<= (nTemp)->numInputs; k++){
 				/* Set the weight */
 				nTemp->weights[k] = weights[wCnt++];
 				/* Set the previous change to 0 */
 				nTemp->deltaWeights[k] = 0;
 			}				
 		}
+	}
+}
+
+void getWeights(mlpNetwork* net, FILE* stream){
+	int i, j, k;
+	neuron* layer;
+	neuron* nTemp;
+	
+	/* For each layer */
+	for(i=0; i<net->numLayers; i++){
+		/* For each neuron in the layer */
+		fprintf(stream, "Layer %2d: {", i);
+		for(j=0; j< net->numNeurons[i]; j++){
+			/* For each weight for the neuron */
+			layer = net->layers[i];
+			nTemp= layer+j;
+			for(k=0; k<= (nTemp)->numInputs; k++){
+				/* Print the weight */
+				fprintf(stream, "%6.5lf", nTemp->weights[k]);
+				if(k < (nTemp)->numInputs) fprintf(stream, ", ");
+			}		
+		}
+		fprintf(stream, "}\n");
 	}
 }
 
