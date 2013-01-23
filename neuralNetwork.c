@@ -214,6 +214,33 @@ void destroyDataset(dataset* ptrDataset){
 	Then, define the functions for general tasks
 */
 
+void calcSSE(dataset* set){
+	int i, j;
+	dataMember* datum;
+	for(i=0; i<set->numOutputs; i++){
+		set->sumSqErrors[i] = 0.0;
+	}
+	for(i=0; i< set->numMembers; i++){
+		datum = set->members+i;
+		for(j=0; j< set->numOutputs; j++){
+			set->sumSqErrors[j] += sqr(datum->errors[j]);
+		}
+	}
+	
+	for(i=0; i<set->numOutputs; i++){
+		set->sumSqErrors[i] = set->sumSqErrors[i] / (set->numMembers);
+	}
+	
+}
+
+double getSSE(dataset* set){
+	int i;
+	double total=0.0;
+	calcSSE(set);
+	for(i=0; i< set->numOutputs; i++) total += set->sumSqErrors[i];
+	return (total);
+}
+
 void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double momentum){
 	if (emax > 0) net->epochMax = emax;
 	else net->epochMax = 1000;
@@ -224,6 +251,7 @@ void setLearnParameters(mlpNetwork* net, int emax, double learnRate, double mome
 }
 
 void getLearnParameters(mlpNetwork* net, FILE* stream){
+	if(stream == NULL) stream = stdout;
 	fprintf(stream, "Max Epoch: %6d, Learning Rate: %06.3lf, Momentum: %06.3lf\n", 
 	                net->epochMax, net->learnRate, net->momentum);
 }
@@ -258,6 +286,8 @@ void getWeights(mlpNetwork* net, FILE* stream){
 	int i, j, k;
 	neuron* layer;
 	neuron* nTemp;
+	
+	if(stream == NULL) stream = stdout;
 	
 	/* For each layer */
 	for(i=0; i<net->numLayers; i++){
@@ -425,32 +455,31 @@ void computeNetwork(mlpNetwork* net, dataMember* datum, int numIn, int numOut){
 /*
 	Function called by the user to run the network on a given dataset once
 */
-void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
-	int i,j,k;
+void runNetworkOnce(mlpNetwork* net, dataset* data, FILE* stream, int print){
+	int i,k;
 	dataMember* member;
 	double max, min;
-	/* First initialise the sumSqErrors to 0.0 */
-	for(i=0; i< data->numOutputs; i++){
-		data->sumSqErrors[i] = 0.0;
-	}
+	int space;
+	
+	if(stream == NULL) stream = stdout;
 	
 	if(print>0){
 		switch(print){
 			case 2:	/* Outputs and targets */
-				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ",
+				fprintf(stream, "%-*s|%-*s\n", (9*data->numInputs)-2, "Inputs: ",
 										19*data->numOutputs , "(Outputs,Targets): ");
 				break;
 			case 3:	/* Outputs and errors */
-				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ",
+				fprintf(stream, "%-*s|%-*s\n", (9*data->numInputs)-2, "Inputs: ",
 										19*data->numOutputs , "(Outputs,Errors):  ");
 				break;
 			case 4:	/* Outputs, target and errors */
-				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ", 
+				fprintf(stream, "%-*s|%-*s\n", (9*data->numInputs)-2, "Inputs: ", 
 										28*data->numOutputs , "(Outputs,Targets,Errors):   ");
 				break;
 			case 1: /* Just the outputs */
 			default:
-				printf("%-.*s|%-.*s\n", (9*data->numInputs)-2, "Inputs: ", 
+				fprintf(stream, "%-*s|%-*s\n", (9*data->numInputs)-2, "Inputs: ", 
 										10*data->numOutputs ,"(Outputs):");
 				break;
 		}
@@ -468,8 +497,8 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 			for(k=0; k< data->numInputs; k++){
 				max = data->maxScale[k];
 				min = data->minScale[k];
-				if(k==0)printf("%7.4lf", scale(member->inputs[k], min, max, SCALE_FOR_HUMAN));
-				else	printf(", %7.4lf", scale(member->inputs[k], min, max, SCALE_FOR_HUMAN));
+				if(k==0)fprintf(stream, "%7.4lf", scale(member->inputs[k], min, max, SCALE_FOR_HUMAN));
+				else	fprintf(stream, ", %7.4lf", scale(member->inputs[k], min, max, SCALE_FOR_HUMAN));
 			}
 			printf("|");
 			for(k=0; k< data->numOutputs; k++){
@@ -477,29 +506,34 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, int print){
 				min = data->minScale[data->numInputs+k];
 				switch(print){
 					case 2:	/* Outputs and targets */
-						printf("(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN) );
+						fprintf(stream, "(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN) );
 						break;
 					case 3:	/* Outputs and errors */
-						printf("(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN));
+						fprintf(stream, "(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN));
 						break;
 					case 4:	/* Outputs, target and errors */
-						printf("(%7.4lf, %7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN) );
+						fprintf(stream, "(%7.4lf, %7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN) );
 						break;
 					case 1: /* Just the outputs */
 					default:
-						printf("(%7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN) );
+						fprintf(stream, "(%7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN) );
 						break;				
 				}
 			}
-			printf("\n");
+			fprintf(stream, "\n");
 		}		
 		
-		/* Add outputs to appropriate sumSqError */
-		for(j=0; j< data->numOutputs; j++){
-			data->sumSqErrors[j] += sqr((data->members+i)->outputs[j]);
-		}
-	}	
+	}
 	
+	fprintf(stream, "%*s| ", (9*data->numInputs)-2, "Mean SSE:" );
+	space = 10;
+	if(print == 2 || print == 3) space = 19;
+	if(print == 4) space = 28;
+	space = space * data->numOutputs;
+	for(k=0; k< data->numOutputs; k++){
+		fprintf(stream, "%07.4lf", getSSE(data));
+	}
+	fprintf(stream, "\n");
 }
 
 /*
@@ -513,8 +547,40 @@ void trainNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	for(i=0; i< data->numMembers; i++){
 		computeNetwork(net, data->members+i, data->numInputs, data->numOutputs);
 		adaptNetwork(net, (data->members+i)->errors, (data->members+i)->inputs);
+		if(print == 1) printf("Total SSE: %9.5lf\n", getSSE(data));
 	}
 	
+}
+
+void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, int print){
+	double currAvg = 0.0, prevAvg = 0.0;
+	for(net->epoch=0; net->epoch < net->epochMax; net->epoch++){
+		
+		trainNetworkOnce(net, training, 0);
+		
+		/* If we're using the validation set */
+		if(validation != NULL){
+			runNetworkOnce(net, validation, NULL, 0);
+			currAvg += getSSE(validation);
+			
+			/* If epoch at least 150 */
+			if( net->epoch > 149 ){
+				/* Every 10th epoch */
+				if( net->epoch % 10 == 0){
+					/* If the average has risen */
+					if(currAvg > prevAvg){
+						break;					
+					}
+					prevAvg = currAvg;
+					currAvg = 0.0;
+				}
+			}
+		}
+	}
+	
+	if(print == 1) printf("Epochs: %6d, Training SSE: %9.5lf", net->epoch, getSSE(training));
+	if(validation != NULL) printf("Valid SSE: %9.5lf", getSSE(validation));
+	printf("\n");
 }
 
 /*

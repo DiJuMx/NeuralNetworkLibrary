@@ -26,11 +26,13 @@ void setLearnParameters(mlpNetwork* Net, int emax, double learnRate, double mome
 void getLearnParameters(mlpNetwork* net, FILE* stream);
 
 void setWeights(mlpNetwork* net, double* weights);
-void runNetworkOnce(mlpNetwork* net, dataset* data, int print);
+void getWeights(mlpNetwork* net, FILE* stream);
+
+void runNetworkOnce(mlpNetwork* net, dataset* data, FILE* stream, int print);
 void trainNetworkOnce(mlpNetwork* net, dataset* data, int print);
 
 void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, int print);
-
+double getSSE(dataset* data);
 
 void destroyNet(mlpNetwork* net);
 mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learnMethod, int defaultActivation);
