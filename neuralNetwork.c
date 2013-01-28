@@ -48,6 +48,8 @@ double scale(double val, double min, double max, int type){
 		return ( 0.1 + (0.8 * (val - min) / (max-min) ) );
 	}else if(type == SCALE_FOR_HUMAN){ /* i.e. Take network values and convert for human */
 		return ( min + ((max-min) * (val - 0.1) / 0.8));
+	}else if(type == SCALE_ERROR_OUT){
+		return (val *(max-min) / 0.8);
 	}else{
 		return (val);
 	}	
@@ -210,6 +212,23 @@ void destroyDataset(dataset* ptrDataset){
 	/* Then free the dataset itself */	
 	free(ptrDataset);
 }
+
+void printDataMember(dataset* data, int member){
+	int i;
+	for(i=0; i<data->numInputs;i++){
+		printf("%lf, ", data->maxScale[i]);
+	}
+	printf("\n");
+	for(i=0; i<data->numInputs;i++){
+		printf("%lf, ", data->minScale[i]);
+	}
+	printf("\n");
+	for(i=0; i<data->numInputs;i++){
+		printf("%lf, ", (data->members+member)->inputs[i]);
+	}
+	printf("\n");
+}
+
 /*
 	Then, define the functions for general tasks
 */
@@ -274,7 +293,11 @@ void setWeights(mlpNetwork* net, double* weights){
 			nTemp= layer+j;
 			for(k=0; k<= (nTemp)->numInputs; k++){
 				/* Set the weight */
-				nTemp->weights[k] = weights[wCnt++];
+				if(weights != NULL){
+					nTemp->weights[k] = weights[wCnt++];
+				}else{
+					nTemp->weights[k] = ((double) rand() * 2.0 / RAND_MAX)-1;
+				}
 				/* Set the previous change to 0 */
 				nTemp->deltaWeights[k] = 0;
 			}				
@@ -463,6 +486,7 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, FILE* stream, int print){
 	
 	if(stream == NULL) stream = stdout;
 	
+	
 	if(print>0){
 		switch(print){
 			case 2:	/* Outputs and targets */
@@ -552,7 +576,7 @@ void trainNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	
 }
 
-void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, int print){
+void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, FILE* stream,  int print){
 	double currAvg = 0.0, prevAvg = 0.0;
 	for(net->epoch=0; net->epoch < net->epochMax; net->epoch++){
 		
@@ -560,7 +584,7 @@ void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, int p
 		
 		/* If we're using the validation set */
 		if(validation != NULL){
-			runNetworkOnce(net, validation, NULL, 0);
+			runNetworkOnce(net, validation, stream, 0);
 			currAvg += getSSE(validation);
 			
 			/* If epoch at least 150 */

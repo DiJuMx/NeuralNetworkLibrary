@@ -10,6 +10,7 @@
 
 #define SCALE_FOR_NET  	0x0101	/* Scale human data for use in the network */
 #define SCALE_FOR_HUMAN	0x0102	/* Scale network data for presentation to human */
+#define SCALE_ERROR_OUT 0x0103  /* The error needs to be scaled differently o normal values */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -19,8 +20,11 @@
 typedef struct dataset dataset;
 typedef struct mlpNetwork mlpNetwork;
 
+double scale(double val, double min, double max, int type);
+
 dataset * loadData(char* filename, char* name);
 void destroyDataset(dataset* ptrDataset);
+void printDataMember(dataset* data, int member);
 
 void setLearnParameters(mlpNetwork* Net, int emax, double learnRate, double momentum);
 void getLearnParameters(mlpNetwork* net, FILE* stream);
@@ -31,7 +35,7 @@ void getWeights(mlpNetwork* net, FILE* stream);
 void runNetworkOnce(mlpNetwork* net, dataset* data, FILE* stream, int print);
 void trainNetworkOnce(mlpNetwork* net, dataset* data, int print);
 
-void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, int print);
+void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, FILE* stream,  int print);
 double getSSE(dataset* data);
 
 void destroyNet(mlpNetwork* net);
