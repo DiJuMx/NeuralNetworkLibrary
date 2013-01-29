@@ -165,7 +165,7 @@ dataset * loadData(char* filename, char* name){
 			max = ptrDataset->maxScale[j];
 			min = ptrDataset->minScale[j];
 			fscanf(ptrDataFile, "%lf, ", &temp);
-			(ptrDataset->members+i)->inputs[j] = scale(temp,min,max,SCALE_FOR_NET);
+			(ptrDataset->members+i)->inputs[j] = scale(temp,min,max,SCALE_FOR_NET);			
 		}
 		
 		/* Read the outputs */
@@ -286,10 +286,10 @@ void setWeights(mlpNetwork* net, double* weights){
 	
 	/* For each layer */
 	for(i=0; i<net->numLayers; i++){
+		layer = net->layers[i];
 		/* For each neuron in the layer */
 		for(j=0; j< net->numNeurons[i]; j++){
 			/* For each weight for the neuron */
-			layer = net->layers[i];
 			nTemp= layer+j;
 			for(k=0; k<= (nTemp)->numInputs; k++){
 				/* Set the weight */
@@ -315,18 +315,20 @@ void getWeights(mlpNetwork* net, FILE* stream){
 	/* For each layer */
 	for(i=0; i<net->numLayers; i++){
 		/* For each neuron in the layer */
-		fprintf(stream, "Layer %2d: {", i);
+		fprintf(stream, "Layer %2d:\n", i);
+		layer = net->layers[i];
 		for(j=0; j< net->numNeurons[i]; j++){
 			/* For each weight for the neuron */
-			layer = net->layers[i];
 			nTemp= layer+j;
+			fprintf(stream, "{");
 			for(k=0; k<= (nTemp)->numInputs; k++){
 				/* Print the weight */
 				fprintf(stream, "%6.5lf", nTemp->weights[k]);
 				if(k < (nTemp)->numInputs) fprintf(stream, ", ");
-			}		
+			}
+			fprintf(stream, "}\n");
 		}
-		fprintf(stream, "}\n");
+		fprintf(stream, "\n");
 	}
 }
 
@@ -533,10 +535,10 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, FILE* stream, int print){
 						fprintf(stream, "(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN) );
 						break;
 					case 3:	/* Outputs and errors */
-						fprintf(stream, "(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN));
+						fprintf(stream, "(%7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_ERROR_OUT));
 						break;
 					case 4:	/* Outputs, target and errors */
-						fprintf(stream, "(%7.4lf, %7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_FOR_HUMAN) );
+						fprintf(stream, "(%7.4lf, %7.4lf, %7.4lf) ", scale(member->outputs[k],min,max,SCALE_FOR_HUMAN), scale(member->targets[k],min,max,SCALE_FOR_HUMAN), scale(member->errors[k],min,max,SCALE_ERROR_OUT) );
 						break;
 					case 1: /* Just the outputs */
 					default:
@@ -549,15 +551,6 @@ void runNetworkOnce(mlpNetwork* net, dataset* data, FILE* stream, int print){
 		
 	}
 	
-	fprintf(stream, "%*s| ", (9*data->numInputs)-2, "Mean SSE:" );
-	space = 10;
-	if(print == 2 || print == 3) space = 19;
-	if(print == 4) space = 28;
-	space = space * data->numOutputs;
-	for(k=0; k< data->numOutputs; k++){
-		fprintf(stream, "%07.4lf", getSSE(data));
-	}
-	fprintf(stream, "\n");
 }
 
 /*
@@ -571,13 +564,16 @@ void trainNetworkOnce(mlpNetwork* net, dataset* data, int print){
 	for(i=0; i< data->numMembers; i++){
 		computeNetwork(net, data->members+i, data->numInputs, data->numOutputs);
 		adaptNetwork(net, (data->members+i)->errors, (data->members+i)->inputs);
-		if(print == 1) printf("Total SSE: %9.5lf\n", getSSE(data));
+		if(print == 1) printf("Total SSE: %9.5lf\n", getSSE(data) );
 	}
 	
 }
 
 void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, FILE* stream,  int print){
-	double currAvg = 0.0, prevAvg = 0.0;
+	double currAvg = 0.0, prevAvg = 10000000.0;
+	
+	if(stream == NULL) stream = stdout;
+	
 	for(net->epoch=0; net->epoch < net->epochMax; net->epoch++){
 		
 		trainNetworkOnce(net, training, 0);
@@ -602,9 +598,9 @@ void trainNetwork(mlpNetwork* net, dataset* training, dataset* validation, FILE*
 		}
 	}
 	
-	if(print == 1) printf("Epochs: %6d, Training SSE: %9.5lf", net->epoch, getSSE(training));
-	if(validation != NULL) printf("Valid SSE: %9.5lf", getSSE(validation));
-	printf("\n");
+	if(print == 1) fprintf(stream, "Epochs: %6d, Training SSE: %9.5lf", net->epoch, getSSE(training));
+	if(validation != NULL) fprintf(stream, ", Valid SSE: %9.5lf", getSSE(validation));
+	fprintf(stream, "\n");
 }
 
 /*
@@ -778,6 +774,8 @@ mlpNetwork* createNetwork(int numLayers, int* numPerLayer, int inputs, int learn
 		connectInputs(net, inPtrs, i);
 		free(inPtrs);
 	}
+	
+	setWeights(net, NULL);
 	return (net);
 }
 
