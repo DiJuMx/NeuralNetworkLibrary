@@ -109,3 +109,6 @@ Session.vim
 # Auto-generated tag files
 # Persistent undo
 [._]*.un~
+
+# YouCompleteMe
+.ycm_extra_conf.py
